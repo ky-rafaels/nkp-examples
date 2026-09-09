@@ -1,0 +1,22 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: nutanix-files-sc
+provisioner: csi.nutanix.com
+parameters:
+  storageType: NutanixFiles
+  dynamicProv: ENABLED
+  nfsServerName: <YOUR-FILE-SERVER-NAME> # e.g., csi-nfs
+  # Optional: For PC-based deployments, you can specify the nfsServer endpoint
+  # nfsServer: <YOUR-FILE-SERVER-FQDN> 
+  csi.storage.k8s.io/provisioner-secret-name: ntnx-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: ntnx-system
+  csi.storage.k8s.io/node-publish-secret-name: ntnx-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: ntnx-system
+  csi.storage.k8s.io/controller-expand-secret-name: ntnx-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: ntnx-system
+  csi.storage.k8s.io/controller-publish-secret-name: ntnx-secret
+  csi.storage.k8s.io/controller-publish-secret-namespace: ntnx-system
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
