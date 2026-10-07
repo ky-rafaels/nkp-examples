@@ -1,0 +1,22 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: custom-apps-gw 
+  namespace: kube-system
+spec:
+  gatewayClassName: kommander-traefik 
+  listeners:
+  - name: https
+    protocol: HTTPS
+    port: 443
+    hostname: '*.ky-rafaels.com'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: wildcard-tls
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        matchLabels:
+          expose: true
