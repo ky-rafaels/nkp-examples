@@ -3,8 +3,10 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    kubernetes.io/ingress.class: kommander-traefik
     # traefik.ingress.kubernetes.io/router.middlewares: nkp-flux-provisioned-phvwv-jjxpb-stripprefixes@kubernetescrd,nkp-flux-provisioned-phvwv-jjxpb-forwardauth-full@kubernetescrd
+    cert-manager.io/cluster-issuer: selfsigned-issuer
+    cert-manager.io/duration: 2160h # 90 days
+    cert-manager.io/renew-before: 360h # 15 days
     traefik.ingress.kubernetes.io/router.tls: "true"
   generation: 1
   labels:
@@ -12,6 +14,7 @@ metadata:
   name: neuvector
   namespace: neuvector
 spec:
+  ingressClassName: kommander-traefik
   rules:
   - http:
       paths:
