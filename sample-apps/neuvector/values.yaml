@@ -1,6 +1,9 @@
 manager:
   svc:
-    type: ClusterIP          # no need for NodePort/LoadBalancer once Ingress exists
+    type: ClusterIP
+    annotations:
+      traefik.ingress.kubernetes.io/service.serversscheme: https
+      traefik.ingress.kubernetes.io/service.serverstransport: neuvector-neuvector-insecure@kubernetescrd
   ingress:
     enabled: true
     host: neuvector.10.38.48.141.nip.io
@@ -11,5 +14,6 @@ manager:
       cert-manager.io/duration: 2160h # 90 days
       cert-manager.io/renew-before: 360h # 15 days
       traefik.ingress.kubernetes.io/router.tls: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     tls: true
-    secretName: wildcard-tls 
+    secretName: wildcard-tls
