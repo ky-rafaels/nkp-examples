@@ -11,7 +11,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/rules/0/host
-        value: keycloak.workload-1.example.com
+        value: keycloak.10.38.48.147.nip.io
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: keycloak.workload-1.example.com
+        value: keycloak.10.38.48.147.nip.io
