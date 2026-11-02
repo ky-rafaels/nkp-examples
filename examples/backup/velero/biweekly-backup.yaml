@@ -1,0 +1,114 @@
+# -----------------------------------------------------------------------------
+# 1. Full-cluster schedule: runs on the 1st and 15th of each month at 02:00 UTC,
+#    keeps each backup for 90 days (~6 restore points).
+# -----------------------------------------------------------------------------
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: cluster-biweekly
+  namespace: velero
+spec:
+  # Alternatives:
+  #   "@every 336h"   -> exactly every 14 days, relative to the last run
+  #   "0 2 * * 1,4"   -> twice a week (Mon + Thu)
+  schedule: "0 2 1,15 * *"
+  paused: false
+  # Keep backups if the Schedule object is deleted.
+  useOwnerReferencesInBackup: false
+  template:
+    ttl: 2160h0m0s
+    storageLocation: default
+    includedNamespaces:
+      - "*"
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - velero
+    excludedResources:
+      - events
+      - events.events.k8s.io
+    includeClusterResources: true
+
+    # --- Volume data: keep ONE of the two options below ---
+
+    # Option A: CSI snapshots, with data moved to object storage (Velero 1.12+).
+    snapshotVolumes: true
+    snapshotMoveData: true
+
+    # Option B: file system backup via node-agent (Kopia).
+    # snapshotVolumes: false
+    # defaultVolumesToFsBackup: true
+---
+# -----------------------------------------------------------------------------
+# 2. (Optional) Daily schedule for stateful namespaces with shorter retention.
+#    Shrinks the data-loss window for apps whose data changes often.
+# -----------------------------------------------------------------------------
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: stateful-daily
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  useOwnerReferencesInBackup: false
+  template:
+    ttl: 336h0m0s   # 14 days
+    storageLocation: default
+    includedNamespaces:
+      - my-database-namespace   # <-- replace
+    includeClusterResources: false
+    snapshotVolumes: true
+    snapshotMoveData: true
+---
+# -----------------------------------------------------------------------------
+# 3. (Only for CSI, Option A) VolumeSnapshotClass that Velero will pick up.
+#    Velero picks the class labeled for the matching CSI driver.
+# -----------------------------------------------------------------------------
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: velero-snapclass
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: nutanix-volume   # <-- replace with your CSI driver name
+deletionPolicy: Retain
+---
+# -----------------------------------------------------------------------------
+# 4. (Optional, requires prometheus-operator) Alerts for failed or stale backups.
+#    Velero's metrics must be scraped (ServiceMonitor or podmonitor).
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: velero-backup-alerts
+  namespace: velero
+  labels:
+    release: kube-prometheus-stack   # <-- match your Prometheus ruleSelector
+spec:
+  groups:
+    - name: velero
+      rules:
+        - alert: VeleroBackupStale
+          # No successful backup in 16 days (14-day cadence + 2 days slack).
+          expr: |
+            time() - velero_backup_last_successful_timestamp{schedule="cluster-biweekly"} > 16 * 24 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Velero schedule cluster-biweekly has no successful backup in over 16 days"
+        - alert: VeleroBackupFailed
+          expr: |
+            increase(velero_backup_failure_total{schedule=~"cluster-biweekly|stateful-daily"}[1h]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero backup failed for schedule {{ $labels.schedule }}"
+        - alert: VeleroBackupPartialFailure
+          expr: |
+            increase(velero_backup_partial_failure_total{schedule=~"cluster-biweekly|stateful-daily"}[1h]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero backup partially failed for schedule {{ $labels.schedule }}"

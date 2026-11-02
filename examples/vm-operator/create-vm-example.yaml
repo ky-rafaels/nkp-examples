@@ -1,0 +1,125 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prism-api-key
+  namespace: vm-apps
+type: Opaque
+stringData:
+  apiKey: 9e917431e4864bf9b4096d77324f391c
+---
+apiVersion: prism.v4.nutanix.com/v1alpha1
+kind: NutanixPrismContext
+metadata:
+  name: prism-context
+  namespace: vm-apps
+spec:
+  credential:
+    name: prism-api-key
+    namespace: vm-apps
+  endpoint:
+    address: 10.38.12.7
+    port: 9440
+    tls:
+      mode: Insecure
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-vm-01-cloud-init
+  namespace: vm-apps
+type: Opaque
+immutable: true
+stringData:
+  userData: |
+    #cloud-config
+    hostname: app-vm-01
+    # Create user
+    users:
+      - name: nutanix
+        groups: sudo
+        shell: /bin/bash
+        sudo: ALL=(ALL) NOPASSWD:ALL
+
+    # Set password
+    chpasswd:
+      list: |
+        nutanix:nutanix/4u
+      expire: false
+
+    # Enable password authentication
+    ssh_pwauth: true
+---
+apiVersion: vmm.v4.nutanix.com/v1alpha1
+kind: VirtualMachine
+mLoadBalanceoetadata:
+  name: app-vm-01
+  namespace: vm-apps
+  labels:
+    app: demo
+spec:
+  context:
+    name: prism-context
+  displayName: app-vm-01
+  placement:
+    cluster:
+      type: name
+      name: PHX-SPOC003-4
+  compute:
+    numSockets: 4
+    numCoresPerSocket: 1
+    memorySize: 8Gi
+  bootConfiguration:
+    bootDisk:
+      source:
+        type: Image
+        image:
+          type: name
+          name: 'Ubuntu-24.04'
+      diskSize: 40Gi
+  network:
+    nics:
+      - name: eth0
+        networkInfo:
+          nicType: NORMAL_NIC
+          subnet:
+            type: name
+            name: primary-PHX-SPOC003-4
+  categories:
+    - key: Environment
+      value: Dev
+  storage:
+    flashMode: false
+    dataDisks:
+    - diskSize: 10Gi
+      deviceProperties:
+        adapterType: SCSI
+        deviceIndex: 1
+      storageConfig:
+        diskMode: Standard
+        storageContainer:
+          type: name
+          name: NutanixManagementShare
+  guestCustomization:
+    type: CloudInit
+    secretRef:
+      name: app-vm-01-cloud-init
+  outOfBandDriftPolicy: Enforce
+  powerState: "On"
+---
+apiVersion: vmm.v4.nutanix.com/v1alpha1
+kind: VirtualMachineService
+metadata:
+  name: app
+  namespace: vm-apps
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  type: ClusterIP
+    # headless: true
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
